@@ -199,6 +199,6 @@ export default async (req) => {
     return fail(404, 'Não encontrado.');
   } catch (e) {
     console.error(e);
-    return fail(502, 'Erro a obter dados. Tenta daqui a pouco.');
+    return json({ error: 'Erro a obter dados. Tenta daqui a pouco.', detail: String(e?.message ?? e) }, 502);
   }
 };
