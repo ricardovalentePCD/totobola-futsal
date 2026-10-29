@@ -1,17 +1,27 @@
 // Teste de fumo: corre a API em memória contra o zerozero real.
 process.env.TOTOBOLA_MEM = '1';
+process.env.SYNC_KEY = 'chave-de-teste';
 import assert from 'node:assert/strict';
 import api from '../netlify/functions/api.mjs';
 import { db } from '../netlify/functions/lib/store.mjs';
+import { collectDivision } from '../scripts/sync.mjs';
+import divisionsCfg from '../netlify/functions/lib/divisions.json' with { type: 'json' };
 
-const call = async (method, path, body) => {
-  const res = await api(new Request('http://x' + path, { method, body: body && JSON.stringify(body) }));
+const call = async (method, path, body, headers = {}) => {
+  const res = await api(new Request('http://x' + path, { method, headers, body: body && JSON.stringify(body) }));
   return { status: res.status, data: await res.json() };
 };
 
 // divisões
 const divs = await call('GET', '/api/divisions');
 assert.equal(divs.data.length, 6);
+
+// sem dados ainda -> 503; sync exige chave
+assert.equal((await call('GET', '/api/round?div=sub17-sul')).status, 503);
+const payload = await collectDivision(divisionsCfg.find((d) => d.id === 'sub17-sul'), { all: true, delay: 150 });
+assert.equal((await call('POST', '/api/sync', payload)).status, 401, 'sem chave');
+assert.equal((await call('POST', '/api/sync', payload, { 'x-sync-key': 'errada' })).status, 401, 'chave errada');
+assert.equal((await call('POST', '/api/sync', payload, { 'x-sync-key': 'chave-de-teste' })).status, 200);
 
 // jornada actual
 const cur = await call('GET', '/api/round?div=sub17-sul');

@@ -1,12 +1,10 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import divisions from './lib/divisions.json' with { type: 'json' };
 import { db } from './lib/store.mjs';
-import { fetchRound, outcomeOf } from './lib/zerozero.mjs';
+import { outcomeOf } from './lib/zerozero.mjs';
 
 export const config = { path: '/api/*' };
 
-const RESULT_DELAY_MS = 75 * 60 * 1000; // só confiar no resultado depois do jogo acabar
-const RECHECK_MS = 5 * 60 * 1000;
 const MAX_FAILS = 8;
 const LOCK_MS = 15 * 60 * 1000;
 
@@ -66,54 +64,46 @@ const publicGame = (g, now) => ({
   outcome: g.score ? outcomeOf(g.score) : null,
 });
 
-// guarda/actualiza os jogos de uma jornada (mantém resultados já conhecidos)
-async function saveGames(store, div, round, games) {
+// O zerozero bloqueia os servidores do Netlify, por isso os jogos chegam por /api/sync
+// (enviados pelo script scripts/sync.mjs, que corre num computador não bloqueado).
+const rkey = (div, n) => `rounds/${div}-${n}`;
+
+// guarda os jogos de uma jornada (um resultado já conhecido nunca é apagado)
+async function saveRound(store, div, round, games) {
   await Promise.all(
     games.map(async (g) => {
       const prev = await store.get(`games/${g.id}`);
-      const score = g.score ?? prev?.score ?? null;
-      await store.set(`games/${g.id}`, { ...g, score, div: div.id, round });
+      await store.set(`games/${g.id}`, { ...g, score: g.score ?? prev?.score ?? null, div, round });
     })
   );
+  await store.set(rkey(div, round), { gids: games.map((g) => g.id) });
 }
 
 async function getRound(store, divId, roundWanted) {
-  const div = divisionById(divId);
-  if (!div) return null;
-  const data = await fetchRound(div.edition, roundWanted);
-  await saveGames(store, div, data.round, data.games);
-  const merged = await Promise.all(data.games.map(async (g) => ({ ...g, score: g.score ?? (await store.get(`games/${g.id}`))?.score ?? null })));
-  return { div, ...data, games: merged };
+  const meta = await store.get(`meta/${divId}`);
+  if (!meta) return { empty: true };
+  const round = roundWanted || meta.current;
+  const entry = await store.get(rkey(divId, round));
+  const games = (await Promise.all((entry?.gids ?? []).map((id) => store.get(`games/${id}`)))).filter(Boolean);
+  games.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  return { title: meta.title, round, rounds: meta.rounds, games, updatedAt: meta.updatedAt };
 }
 
-// vai buscar os resultados dos jogos votados que já terminaram mas ainda não têm resultado
-async function resolveResults(store) {
-  const now = Date.now();
-  const voteKeys = await store.list('votes/');
-  const gids = new Set();
-  for (const k of voteKeys) {
-    const v = await store.get(k);
-    Object.keys(v?.picks ?? {}).forEach((g) => gids.add(g));
-  }
-  const pending = new Map(); // "div|round" -> true
-  for (const gid of gids) {
-    const g = await store.get(`games/${gid}`);
-    if (g && !g.score && now > new Date(g.kickoff).getTime() + RESULT_DELAY_MS) pending.set(`${g.div}|${g.round}`, true);
-  }
-  await Promise.all(
-    [...pending.keys()].map(async (k) => {
-      const checkKey = `meta/check-${k.replace('|', '-')}`;
-      const last = await store.get(checkKey);
-      if (last && now - last.t < RECHECK_MS) return;
-      await store.set(checkKey, { t: now });
-      const [divId, round] = k.split('|');
-      try { await getRound(store, divId, +round); } catch { /* zerozero em baixo: tenta na próxima */ }
-    })
-  );
+async function sync(store, body) {
+  const div = divisionById(body.div);
+  if (!div) return { status: 404, error: 'Divisão desconhecida.' };
+  const rounds = (body.data ?? []).filter((r) => Number.isInteger(r.round) && Array.isArray(r.games));
+  for (const r of rounds) await saveRound(store, div.id, r.round, r.games);
+  await store.set(`meta/${div.id}`, {
+    title: String(body.title ?? div.name),
+    current: body.current,
+    rounds: body.rounds,
+    updatedAt: new Date().toISOString(),
+  });
+  return { ok: true, rounds: rounds.length };
 }
 
 async function leaderboard(store, divFilter) {
-  await resolveResults(store);
   const rows = [];
   const cache = new Map();
   const game = async (gid) => {
@@ -155,11 +145,22 @@ export default async (req) => {
     }
 
     if (req.method === 'GET' && route === 'round') {
-      const roundWanted = +url.searchParams.get('round') || null;
-      const r = await getRound(store, url.searchParams.get('div'), roundWanted);
-      if (!r) return fail(404, 'Divisão desconhecida.');
+      const divId = url.searchParams.get('div');
+      if (!divisionById(divId)) return fail(404, 'Divisão desconhecida.');
+      const r = await getRound(store, divId, +url.searchParams.get('round') || null);
+      if (r.empty) return fail(503, 'Ainda sem jogos desta divisão. Volta daqui a pouco.');
       const now = Date.now();
-      return json({ div: r.div.id, title: r.title, round: r.round, rounds: r.rounds, games: r.games.map((g) => publicGame(g, now)) });
+      return json({ div: divId, title: r.title, round: r.round, rounds: r.rounds, updatedAt: r.updatedAt, games: r.games.map((g) => publicGame(g, now)) });
+    }
+
+    if (req.method === 'POST' && route === 'sync') {
+      const expected = process.env.SYNC_KEY;
+      if (!expected) return fail(503, 'SYNC_KEY não configurada.');
+      const got = Buffer.from(req.headers.get('x-sync-key') ?? '');
+      const want = Buffer.from(expected);
+      if (got.length !== want.length || !timingSafeEqual(got, want)) return fail(401, 'Chave inválida.');
+      const r = await sync(store, await req.json().catch(() => ({})));
+      return r.error ? fail(r.status, r.error) : json(r);
     }
 
     if (req.method === 'GET' && route === 'leaderboard') {
@@ -180,12 +181,7 @@ export default async (req) => {
         if (!['1', 'X', '2'].includes(pick)) return fail(400, 'Palpite inválido.');
         const g = await store.get(`games/${gameId}`);
         if (!g) return fail(404, 'Jogo desconhecido.');
-        // confirma a hora actual do jogo no zerozero (pode ter sido adiado)
-        let kickoff = new Date(g.kickoff).getTime();
-        try {
-          const fresh = (await getRound(store, g.div, g.round)).games.find((x) => x.id === gameId);
-          if (fresh) kickoff = new Date(fresh.kickoff).getTime();
-        } catch { /* usa a hora guardada */ }
+        const kickoff = new Date(g.kickoff).getTime();
         if (Date.now() >= kickoff) return fail(409, 'Este jogo já começou — votos fechados.');
         votes.picks[gameId] = pick;
         votes.nick = user.nick;
