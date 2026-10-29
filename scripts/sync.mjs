@@ -2,12 +2,25 @@
 // Config: ~/.config/totobola/sync.json  { "url": "https://....netlify.app", "key": "<SYNC_KEY>" }
 //   node scripts/sync.mjs          jornada actual ± 1 de cada divisão
 //   node scripts/sync.mjs --all    todas as jornadas (primeira vez / reparar)
-import { readFile } from 'node:fs/promises';
+//   node scripts/sync.mjs --auto   só corre quando a agenda manda (usado pelo launchd, de 15 em 15 min):
+//                                  segunda 10:00 -> carga completa (recupera se o Mac estava adormecido)
+//                                  sábado e domingo 10:00-22:00 -> jornada actual ± 1
+import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import divisions from '../netlify/functions/lib/divisions.json' with { type: 'json' };
 import { fetchRound } from '../netlify/functions/lib/zerozero.mjs';
+
+// Decide o que fazer agora: 'full' | 'normal' | null (hora local do computador).
+export function planAuto(now, lastFull) {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7), 10, 0, 0);
+  if (now >= monday && (!lastFull || lastFull < monday)) return 'full';
+  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  const mins = now.getHours() * 60 + now.getMinutes();
+  if (weekend && mins >= 10 * 60 && mins < 22 * 60 + 15) return 'normal';
+  return null;
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,7 +46,14 @@ async function main() {
     console.error('A chave em ~/.config/totobola/sync.json é inválida (devem ser 48 caracteres 0-9 a-f). Volta a correr scripts/install-sync.sh.');
     process.exit(1);
   }
-  const all = process.argv.includes('--all');
+  const stateFile = join(homedir(), '.config/totobola/state.json');
+  let all = process.argv.includes('--all');
+  if (process.argv.includes('--auto')) {
+    const state = await readFile(stateFile, 'utf8').then(JSON.parse, () => ({}));
+    const plan = planAuto(new Date(), state.lastFull ? new Date(state.lastFull) : null);
+    if (!plan) process.exit(0);
+    all = plan === 'full';
+  }
   let failed = 0;
   for (const div of divisions) {
     try {
@@ -51,6 +71,7 @@ async function main() {
     }
     await sleep(600);
   }
+  if (all && !failed) await writeFile(stateFile, JSON.stringify({ lastFull: new Date().toISOString() }));
   process.exit(failed ? 1 : 0);
 }
 

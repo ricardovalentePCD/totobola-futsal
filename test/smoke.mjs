@@ -4,13 +4,26 @@ process.env.SYNC_KEY = 'chave-de-teste';
 import assert from 'node:assert/strict';
 import api from '../netlify/functions/api.mjs';
 import { db } from '../netlify/functions/lib/store.mjs';
-import { collectDivision } from '../scripts/sync.mjs';
+import { collectDivision, planAuto } from '../scripts/sync.mjs';
 import divisionsCfg from '../netlify/functions/lib/divisions.json' with { type: 'json' };
 
 const call = async (method, path, body, headers = {}) => {
   const res = await api(new Request('http://x' + path, { method, headers, body: body && JSON.stringify(body) }));
   return { status: res.status, data: await res.json() };
 };
+
+// agenda do sync (hora local): segunda 10:00 carga completa, fim de semana 10:00-22:00 normal
+const at = (d, h, m) => new Date(2026, 10, d, h, m); // novembro 2026: 2=seg, 4=qua, 7=sáb, 8=dom
+assert.equal(planAuto(at(2, 10, 5), at(-5, 10, 0)), 'full');
+assert.equal(planAuto(at(2, 9, 59), at(-5, 10, 0)), null);
+assert.equal(planAuto(at(2, 10, 20), at(2, 10, 6)), null);
+assert.equal(planAuto(at(4, 12, 0), at(2, 10, 6)), null);
+assert.equal(planAuto(at(4, 12, 0), at(-5, 10, 0)), 'full', 'recupera segunda falhada');
+assert.equal(planAuto(at(7, 11, 0), at(2, 10, 6)), 'normal');
+assert.equal(planAuto(at(7, 9, 45), at(2, 10, 6)), null);
+assert.equal(planAuto(at(7, 22, 0), at(2, 10, 6)), 'normal');
+assert.equal(planAuto(at(7, 22, 30), at(2, 10, 6)), null);
+assert.equal(planAuto(at(8, 15, 0), at(2, 10, 6)), 'normal');
 
 // divisões
 const divs = await call('GET', '/api/divisions');
