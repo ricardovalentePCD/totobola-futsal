@@ -27,7 +27,7 @@ assert.equal(planAuto(at(8, 15, 0), at(2, 10, 6)), 'normal');
 
 // divisões
 const divs = await call('GET', '/api/divisions');
-assert.equal(divs.data.length, 6);
+assert.equal(divs.data.length, 7);
 
 // sem dados ainda -> 503; sync exige chave
 assert.equal((await call('GET', '/api/round?div=sub17-sul')).status, 503);
