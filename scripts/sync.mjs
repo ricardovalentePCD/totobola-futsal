@@ -29,6 +29,10 @@ export async function collectDivision(div, { all = false, delay = 600 } = {}) {
 
 async function main() {
   const cfg = JSON.parse(await readFile(join(homedir(), '.config/totobola/sync.json'), 'utf8'));
+  if (!/^[0-9a-f]{48}$/.test(cfg.key ?? '')) {
+    console.error('A chave em ~/.config/totobola/sync.json é inválida (devem ser 48 caracteres 0-9 a-f). Volta a correr scripts/install-sync.sh.');
+    process.exit(1);
+  }
   const all = process.argv.includes('--all');
   let failed = 0;
   for (const div of divisions) {
