@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Totobola Futsal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>⚽ Totobola Futsal</h1>
+    <div id="who"></div>
+  </header>
+
+  <main>
+    <section id="login" class="card" hidden>
+      <h2>Entrar</h2>
+      <p class="muted">Primeira vez? Escolhe um <b>nick</b> e um <b>PIN</b> (4 a 6 números) e ficas registado. O nick fica teu e <b>não pode ser alterado</b>. Para voltares a votar usa o mesmo nick e PIN.</p>
+      <form id="loginForm">
+        <label>Nick <input id="nick" maxlength="20" autocomplete="username" required></label>
+        <label>PIN <input id="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Entrar</button>
+        <p id="loginErr" class="err" role="alert"></p>
+      </form>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="games" aria-selected="true">Jogos</button>
+      <button role="tab" data-tab="board" aria-selected="false">Classificação</button>
+    </nav>
+
+    <section id="games">
+      <div class="filters">
+        <select id="division" aria-label="Divisão"></select>
+        <div class="roundnav">
+          <button id="prev" aria-label="Jornada anterior">‹</button>
+          <select id="round" aria-label="Jornada"></select>
+          <button id="next" aria-label="Jornada seguinte">›</button>
+        </div>
+      </div>
+      <p class="muted small" id="hint">Palpite para a equipa da <b>casa</b>: vitória, empate ou derrota. Podes mudar até o jogo começar.</p>
+      <div id="gameList"></div>
+    </section>
+
+    <section id="board" hidden>
+      <div class="filters">
+        <select id="boardDiv" aria-label="Divisão"></select>
+      </div>
+      <p class="muted small">1 ponto por cada resultado certo. Os resultados entram automaticamente.</p>
+      <div id="boardList"></div>
+    </section>
+  </main>
+
+  <div id="toast" role="status"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>

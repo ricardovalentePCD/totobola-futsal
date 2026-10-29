@@ -1,0 +1,50 @@
+:root {
+  --bg: #f4f6f4; --card: #fff; --text: #14201a; --muted: #5d6b63; --line: #dfe5e0;
+  --accent: #0b7a43; --accent-text: #fff; --ok: #0b7a43; --bad: #c0392b; --pick: #e3f3ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1612; --card: #18211c; --text: #e8efe9; --muted: #98a79d; --line: #2a362f; --accent: #2ecb7b; --accent-text: #05130b; --ok: #2ecb7b; --bad: #ff7a6b; --pick: #1d3a2a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; max-width: 720px; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0; }
+h2 { font-size: 1.05rem; margin: 0 0 6px; }
+main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.muted { color: var(--muted); } .small { font-size: .85rem; }
+.err { color: var(--bad); margin: 8px 0 0; min-height: 1.2em; }
+label { display: block; margin: 10px 0; font-size: .9rem; color: var(--muted); }
+input, select, button { font: inherit; color: inherit; }
+input, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); margin-top: 4px; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 10px 12px; }
+button:disabled { cursor: default; opacity: .6; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; width: 100%; margin-top: 6px; }
+#who { font-size: .9rem; display: flex; align-items: center; gap: 8px; }
+#who button { padding: 4px 10px; font-size: .8rem; }
+.tabs { display: flex; gap: 4px; margin: 4px 0 14px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 10px 14px; color: var(--muted); }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.filters select { margin: 0; }
+.roundnav { display: flex; gap: 8px; } .roundnav select { flex: 1; text-align: center; }
+.roundnav button { width: 46px; font-size: 1.2rem; line-height: 1; }
+.game { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.when { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
+.teams { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 10px; }
+.teams span:first-child { text-align: left; flex: 1; } .teams span:last-child { text-align: right; flex: 1; }
+.score { font-variant-numeric: tabular-nums; padding: 2px 10px; border-radius: 6px; background: var(--bg); white-space: nowrap; }
+.picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.picks button { padding: 10px 4px; font-size: .9rem; }
+.picks button.sel { background: var(--pick); border-color: var(--accent); font-weight: 600; }
+.picks button.right { background: var(--ok); border-color: var(--ok); color: var(--accent-text); }
+.picks button.wrong { background: var(--bad); border-color: var(--bad); color: #fff; }
+.picks button.real { outline: 2px solid var(--ok); }
+.badge.ok { color: var(--ok); font-weight: 600; } .badge.bad { color: var(--bad); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+th { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+td.nick, th.nick { text-align: left; } td.pts { font-weight: 700; }
+tr.me { background: var(--pick); }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px; opacity: 0; pointer-events: none; transition: .2s; max-width: calc(100% - 32px); }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
